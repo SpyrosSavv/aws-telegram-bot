@@ -43,6 +43,45 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+      - name: Prepare Lambda Environment Variables
+        id: prepare-env
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_ENDPOINT: ${{ secrets.TELEGRAM_WEBHOOK_ENDPOINT }}
+          MONGODB_CONNECTION_STRING: ${{ secrets.MONGODB_CONNECTION_STRING }}
+          COMET_API_KEY: ${{ secrets.COMET_API_KEY }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+        run: |
+          # Construct a valid JSON string for the environment variables using jq
+          # This handles escaping special characters and trims leading/trailing whitespace (e.g. newlines in secrets)
+          
+          ENV_JSON=$(jq -n -c \
+            --arg openai_api_key "$OPENAI_API_KEY" \
+            --arg elevenlabs_api_key "$ELEVENLABS_API_KEY" \
+            --arg telegram_bot_token "$TELEGRAM_BOT_TOKEN" \
+            --arg telegram_webhook_endpoint "$TELEGRAM_WEBHOOK_ENDPOINT" \
+            --arg mongodb_connection_string "$MONGODB_CONNECTION_STRING" \
+            --arg comet_api_key "$COMET_API_KEY" \
+            --arg qdrant_api_key "$QDRANT_API_KEY" \
+            --arg qdrant_url "$QDRANT_URL" \
+            '{
+              "OPENAI_API_KEY": ($openai_api_key | sub("^\\s+|\\s+$"; ""; "g")),
+              "ELEVENLABS_API_KEY": ($elevenlabs_api_key | sub("^\\s+|\\s+$"; ""; "g")),
+              "TELEGRAM_BOT_TOKEN": ($telegram_bot_token | sub("^\\s+|\\s+$"; ""; "g")),
+              "TELEGRAM_WEBHOOK_ENDPOINT": ($telegram_webhook_endpoint | sub("^\\s+|\\s+$"; ""; "g")),
+              "MONGODB_CONNECTION_STRING": ($mongodb_connection_string | sub("^\\s+|\\s+$"; ""; "g")),
+              "COMET_API_KEY": ($comet_api_key | sub("^\\s+|\\s+$"; ""; "g")),
+              "QDRANT_API_KEY": ($qdrant_api_key | sub("^\\s+|\\s+$"; ""; "g")),
+              "QDRANT_URL": ($qdrant_url | sub("^\\s+|\\s+$"; ""; "g")),
+              "OPIK_CONFIG_PATH": "/tmp/.opik.config"
+            }'
+          )
+          
+          echo "env_json=$ENV_JSON" >> $GITHUB_OUTPUT
+
       - name: Deploy Lambda function with container image
         uses: aws-actions/aws-lambda-deploy@v1.1.0
         with:
@@ -50,6 +89,6 @@ jobs:
           package-type: Image
           image-uri: ${{ steps.build-image.outputs.image }}
           role: ${{ secrets.AWS_LAMBDA_EXECUTION_ROLE }}
-          environment: '{"OPENAI_API_KEY":"${{ secrets.OPENAI_API_KEY }}","ELEVENLABS_API_KEY":"${{ secrets.ELEVENLABS_API_KEY }}","TELEGRAM_BOT_TOKEN":"${{ secrets.TELEGRAM_BOT_TOKEN }}","TELEGRAM_WEBHOOK_ENDPOINT":"${{ secrets.TELEGRAM_WEBHOOK_ENDPOINT }}","MONGODB_CONNECTION_STRING":"${{ secrets.MONGODB_CONNECTION_STRING }}","COMET_API_KEY":"${{ secrets.COMET_API_KEY }}","QDRANT_API_KEY":"${{ secrets.QDRANT_API_KEY }}","QDRANT_URL":"${{ secrets.QDRANT_URL }}", "OPIK_CONFIG_PATH": "/tmp/.opik.config"}'
+          environment: ${{ steps.prepare-env.outputs.env_json }}
           timeout: 180
           memory-size: 1024
