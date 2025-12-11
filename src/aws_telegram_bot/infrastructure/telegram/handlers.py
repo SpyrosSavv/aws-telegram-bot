@@ -13,7 +13,7 @@ from aws_telegram_bot.infrastructure.clients.openai import get_openai_client
 openai_client = get_openai_client()
 elevenlabs_client = get_elevenlabs_client()
 
-async def handle_text(update: Update, content: ContextTypes.DEFAULT_TYPE):
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     
     response = get_agent_response({"messages": user_message}, user_id=update.message.from_user.id)
